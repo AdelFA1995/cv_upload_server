@@ -1,59 +1,74 @@
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
-const port = process.env.PORT || 3000;
-
 app.use(cors());
-app.use(express.static('uploads')); // Serve uploaded files publicly
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Create uploads directory if it doesn't exist
-const uploadDir = './uploads';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// Configure Multer for file storage
+// ذخیره‌سازی فایل‌ها
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadDir);
+    const uploadPath = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    const timestamp = Date.now();
-    const uniqueName = `${timestamp}-${file.originalname}`;
+    const ext = path.extname(file.originalname);
+    const uniqueName = Date.now() + '-' + file.originalname.replace(/\s+/g, '_');
     cb(null, uniqueName);
   }
 });
+
 const upload = multer({ storage: storage });
 
-// Upload endpoint
+// مسیر آپلود
 app.post('/upload', upload.single('cv'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-  res.send('✅ CV uploaded successfully!');
+  if (!req.file) return res.status(400).send('No file uploaded.');
+  res.send('File uploaded successfully!');
 });
 
-// List uploaded files
+// لیست فایل‌ها با دکمه دانلود
 app.get('/files', (req, res) => {
-  fs.readdir(uploadDir, (err, files) => {
-    if (err) {
-      return res.status(500).json({ error: 'Cannot read uploads folder' });
-    }
+  const uploadDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadDir)) return res.send('<h3>No files uploaded yet.</h3>');
 
-    const fileLinks = files.map(file => ({
-      name: file,
-      url: `https://${req.headers.host}/uploads/${file}`
-    }));
+  const files = fs.readdirSync(uploadDir);
+  let html = `
+    <html>
+    <head>
+      <title>Uploaded CVs</title>
+      <style>
+        body { background: #121212; color: #eee; font-family: 'Segoe UI', sans-serif; padding: 40px; }
+        h1 { color: #fff; }
+        .file-box { background: #1e1e1e; padding: 15px 20px; margin: 10px 0; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 0 10px rgba(255, 0, 128, 0.2); }
+        .filename { font-weight: bold; }
+        a.download-btn { background: linear-gradient(to right, #ff0066, #9900ff); padding: 8px 15px; color: white; border-radius: 6px; text-decoration: none; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <h1>📁 Uploaded CVs</h1>
+  `;
 
-    res.json(fileLinks);
+  files.forEach(file => {
+    html += `
+      <div class="file-box">
+        <span class="filename">${file}</span>
+        <a class="download-btn" href="/uploads/${file}" download>Download</a>
+      </div>
+    `;
   });
+
+  html += `</body></html>`;
+  res.send(html);
 });
 
-// Start the server
-app.listen(port, () => {
-  console.log(`🚀 Server running at http://localhost:${port}`);
+// مسیر تست اصلی
+app.get('/', (req, res) => {
+  res.send('CV Upload Server is running...');
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
