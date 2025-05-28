@@ -1,47 +1,59 @@
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
-app.use(cors());
-app.use(express.static('public')); // اگه لازم شد فایل HTML جداگانه داشته باشی
-app.use('/uploads', express.static('uploads')); // فایل‌های آپلود شده قابل مشاهده بشن
+const port = process.env.PORT || 3000;
 
-// مسیر ذخیره فایل‌ها
+app.use(cors());
+app.use(express.static('uploads')); // Serve uploaded files publicly
+
+// Create uploads directory if it doesn't exist
+const uploadDir = './uploads';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+// Configure Multer for file storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath);
-    }
-    cb(null, uploadPath);
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E6) + ext;
+    const timestamp = Date.now();
+    const uniqueName = `${timestamp}-${file.originalname}`;
     cb(null, uniqueName);
   }
 });
-
 const upload = multer({ storage: storage });
 
-// روت اصلی فقط تست سروره
-app.get('/', (req, res) => {
-  res.send('✅ CV Upload Server is running...');
-});
-
-// روت آپلود
+// Upload endpoint
 app.post('/upload', upload.single('cv'), (req, res) => {
   if (!req.file) {
-    return res.status(400).send('❌ No file uploaded');
+    return res.status(400).json({ error: 'No file uploaded' });
   }
-  res.send('✅ File uploaded successfully!');
+  res.send('✅ CV uploaded successfully!');
 });
 
-// ران کردن سرور
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+// List uploaded files
+app.get('/files', (req, res) => {
+  fs.readdir(uploadDir, (err, files) => {
+    if (err) {
+      return res.status(500).json({ error: 'Cannot read uploads folder' });
+    }
+
+    const fileLinks = files.map(file => ({
+      name: file,
+      url: `https://${req.headers.host}/uploads/${file}`
+    }));
+
+    res.json(fileLinks);
+  });
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`🚀 Server running at http://localhost:${port}`);
 });
