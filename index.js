@@ -1,3 +1,4 @@
+// ✅ index.js (نسخه نهایی با پشتیبانی از ذخیره نام فایل)
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
@@ -8,11 +9,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('uploads'));
-app.use(express.static('public')); // برای صفحات thank-you یا all-data.html
+app.use(express.static('public'));
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ذخیره‌سازی فایل
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadPath = path.join(__dirname, 'uploads');
@@ -20,6 +20,7 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
     const uniqueName = Date.now() + '-' + file.originalname.replace(/\s+/g, '_');
     cb(null, uniqueName);
   }
@@ -35,6 +36,7 @@ app.post('/upload', upload.single('cv'), (req, res) => {
   res.status(200).json({ filename: req.file.filename });
 });
 
+// ✅ ذخیره اطلاعات کاربر همراه با نام فایل
 app.post('/save-user', (req, res) => {
   const { firstName, lastName, email, phone, country, market, filename } = req.body;
 
@@ -53,6 +55,7 @@ app.post('/save-user', (req, res) => {
   });
 });
 
+// ✅ لیست فایل‌ها
 app.get('/files', (req, res) => {
   const uploadDir = path.join(__dirname, 'uploads');
   fs.readdir(uploadDir, (err, files) => {
@@ -66,6 +69,7 @@ app.get('/files', (req, res) => {
   });
 });
 
+// ✅ لیست اطلاعات کاربران برای /all-data.html
 app.get('/user-data', (req, res) => {
   const filePath = path.join(__dirname, 'form_submissions.txt');
   if (!fs.existsSync(filePath)) return res.json([]);
