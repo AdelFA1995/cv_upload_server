@@ -8,16 +8,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('uploads'));
-app.use(express.static('public')); // برای سرو فایل HTML مثل thank-you.html
+app.use(express.static('public')); // برای فایل‌های HTML مثل thank-you.html و all-data.html
 
-// مسیر ثابت برای فایل‌ها
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// پوشه آپلود فایل‌ها
+const uploadPath = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
 
-// ساخت مسیر ذخیره رزومه‌ها
+// تنظیمات multer برای ذخیره فایل‌ها
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
@@ -33,35 +32,31 @@ app.get('/', (req, res) => {
   res.send('✅ CV Upload Server is running...');
 });
 
-// آپلود فایل رزومه
-app.post('/upload', upload.single('cv'), (req, res) => {
-  if (!req.file) return res.status(400).send('No file uploaded');
-  res.status(200).send('Uploaded');
-});
-
-// ذخیره اطلاعات کاربر
-app.post('/save-user', (req, res) => {
+// روت ترکیبی آپلود فایل + ذخیره اطلاعات کاربر
+app.post('/submit', upload.single('cv'), (req, res) => {
   const { firstName, lastName, email, phone, country, market } = req.body;
 
-  if (!firstName || !lastName || !email || !country || !market) {
-    return res.status(400).send('Missing fields');
+  if (!req.file || !firstName || !lastName || !email || !country || !market) {
+    return res.status(400).send('Missing fields or file');
   }
 
-  const line = `${Date.now()},${firstName},${lastName},${email},${phone || ''},${country},${market}\n`;
+  const timestamp = Date.now();
+  const fileName = `${timestamp}-${req.file.originalname.replace(/\s+/g, '_')}`;
+  const newPath = path.join(uploadPath, fileName);
 
-  fs.appendFile('form_submissions.txt', line, (err) => {
-    if (err) {
-      console.error('❌ Error saving user data:', err);
-      return res.status(500).send('Failed to save');
-    }
-    res.send('Saved');
-  });
+  // تغییر نام فایل
+  fs.renameSync(req.file.path, newPath);
+
+  // ذخیره اطلاعات به همراه نام فایل
+  const line = `${timestamp},${firstName},${lastName},${email},${phone || ''},${country},${market},${fileName}\n`;
+  fs.appendFileSync('form_submissions.txt', line);
+
+  res.status(200).send('Saved & Uploaded');
 });
 
-// نمایش لیست فایل‌ها
+// نمایش فایل‌ها به صورت لیست
 app.get('/files', (req, res) => {
-  const uploadDir = path.join(__dirname, 'uploads');
-  fs.readdir(uploadDir, (err, files) => {
+  fs.readdir(uploadPath, (err, files) => {
     if (err) return res.status(500).json({ error: 'Failed to read uploads' });
 
     const fileList = files.map(name => ({
@@ -72,17 +67,27 @@ app.get('/files', (req, res) => {
   });
 });
 
-// نمایش لیست اطلاعات کاربران (برای /all-data.html)
+// نمایش اطلاعات کاربران + فایل رزومه
 app.get('/user-data', (req, res) => {
   const filePath = path.join(__dirname, 'form_submissions.txt');
   if (!fs.existsSync(filePath)) return res.json([]);
 
   const data = fs.readFileSync(filePath, 'utf-8').trim().split('\n').map((line) => {
-    const [timestamp, firstName, lastName, email, phone, country, market] = line.split(',');
-    return { timestamp, firstName, lastName, email, phone, country, market };
+    const [timestamp, firstName, lastName, email, phone, country, market, fileName] = line.split(',');
+    return {
+      timestamp,
+      firstName,
+      lastName,
+      email,
+      phone,
+      country,
+      market,
+      fileName,
+      fileUrl: `https://cv-upload-server.onrender.com/uploads/${fileName}`
+    };
   });
 
-  res.json(data.reverse()); // آخرین کاربر اول باشه
+  res.json(data.reverse());
 });
 
 // اجرای سرور
