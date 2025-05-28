@@ -4,6 +4,12 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
+const path = require('path');
+
+app.get('/thank-you', (req, res) => {
+  res.sendFile(path.join(__dirname, 'thank-you.html'));
+});
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -34,6 +40,7 @@ app.get('/', (req, res) => {
 app.post('/upload', upload.single('cv'), (req, res) => {
   if (!req.file) return res.status(400).send('No file uploaded');
   res.send('File uploaded successfully!');
+  res.redirect('/thank-you');
 });
 
 // ذخیره اطلاعات کاربر
