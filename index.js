@@ -8,7 +8,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('uploads'));
-
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // تنظیمات ذخیره فایل
@@ -53,17 +52,38 @@ app.post('/save-user', (req, res) => {
   });
 });
 
-// روت نمایش فایل‌ها
+// روت نمایش فایل‌ها + اطلاعات کاربران
 app.get('/files', (req, res) => {
   const uploadDir = path.join(__dirname, 'uploads');
+  const formPath = path.join(__dirname, 'form_submissions.txt');
+
   fs.readdir(uploadDir, (err, files) => {
     if (err) return res.status(500).json({ error: 'Failed to read uploads' });
 
-    const fileList = files.map(name => ({
-      name,
-      url: `https://cv-upload-server.onrender.com/uploads/${name}`
-    }));
-    res.json(fileList);
+    fs.readFile(formPath, 'utf8', (err, data) => {
+      if (err) return res.status(500).json({ error: 'Failed to read user info' });
+
+      const userLines = data.trim().split('\n');
+      const combined = files.map(file => {
+        const matchLine = userLines.find(line => line.startsWith(file.split('-')[0]));
+        const [timestamp, firstName, lastName, email, phone, country, market] = matchLine
+          ? matchLine.split(',')
+          : ['', '', '', '', '', '', ''];
+
+        return {
+          name: file,
+          url: `https://cv-upload-server.onrender.com/uploads/${file}`,
+          firstName,
+          lastName,
+          email,
+          phone,
+          country,
+          market
+        };
+      });
+
+      res.json(combined);
+    });
   });
 });
 
