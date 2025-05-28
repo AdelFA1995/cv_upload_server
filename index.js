@@ -30,7 +30,7 @@ app.get('/', (req, res) => {
   res.send('✅ CV Upload Server is running...');
 });
 
-// روت آپلود فایل رزومه
+// آپلود فایل رزومه
 app.post('/upload', upload.single('cv'), (req, res) => {
   if (!req.file) return res.status(400).send('No file uploaded');
   res.send('File uploaded successfully!');
@@ -52,42 +52,51 @@ app.post('/save-user', (req, res) => {
   });
 });
 
-// روت نمایش فایل‌ها + اطلاعات کاربران
+// فقط لیست فایل‌ها
 app.get('/files', (req, res) => {
   const uploadDir = path.join(__dirname, 'uploads');
-  const formPath = path.join(__dirname, 'form_submissions.txt');
+  fs.readdir(uploadDir, (err, files) => {
+    if (err) return res.status(500).json({ error: 'Failed to read uploads' });
+
+    const fileList = files.map(name => ({
+      name,
+      url: `https://cv-upload-server.onrender.com/uploads/${name}`
+    }));
+    res.json(fileList);
+  });
+});
+
+// ترکیب اطلاعات فایل و کاربر
+app.get('/all-data', (req, res) => {
+  const uploadDir = path.join(__dirname, 'uploads');
+  const formFile = path.join(__dirname, 'form_submissions.txt');
 
   fs.readdir(uploadDir, (err, files) => {
     if (err) return res.status(500).json({ error: 'Failed to read uploads' });
 
-    fs.readFile(formPath, 'utf8', (err, data) => {
-      if (err) return res.status(500).json({ error: 'Failed to read user info' });
+    fs.readFile(formFile, 'utf8', (err, data) => {
+      if (err) return res.status(500).json({ error: 'Failed to read form data' });
 
-      const userLines = data.trim().split('\n');
-      const combined = files.map(file => {
-        const matchLine = userLines.find(line => line.startsWith(file.split('-')[0]));
-        const [timestamp, firstName, lastName, email, phone, country, market] = matchLine
-          ? matchLine.split(',')
-          : ['', '', '', '', '', '', ''];
-
+      const lines = data.trim().split('\n').reverse();
+      const result = files.map((filename, index) => {
+        const parts = lines[index]?.split(',') || [];
         return {
-          name: file,
-          url: `https://cv-upload-server.onrender.com/uploads/${file}`,
-          firstName,
-          lastName,
-          email,
-          phone,
-          country,
-          market
+          name: filename,
+          url: `https://cv-upload-server.onrender.com/uploads/${filename}`,
+          timestamp: parts[0] || '',
+          firstName: parts[1] || '',
+          lastName: parts[2] || '',
+          email: parts[3] || '',
+          phone: parts[4] || '',
+          country: parts[5] || '',
+          market: parts[6] || ''
         };
       });
-
-      res.json(combined);
+      res.json(result);
     });
   });
 });
 
-// اجرای سرور
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
